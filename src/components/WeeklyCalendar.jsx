@@ -27,7 +27,7 @@ function groupConsecutiveSlots(sortedMins) {
   return groups;
 }
 
-export default function WeeklyCalendar({ blocks, blocked }) {
+export default function WeeklyCalendar({ blocks, blocked, exportMode = false }) {
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(560);
   const [selectedKey, setSelectedKey] = useState(null);
@@ -171,48 +171,50 @@ export default function WeeklyCalendar({ blocks, blocked }) {
                   // and grows with content when maxHeight is released.
                   // overflow:'hidden' is safe here — height:auto sizes the box to content exactly,
                   // so nothing is ever clipped when expanded.
+                  const wrap = exportMode ? 'normal' : (isExpanded ? 'normal' : 'nowrap');
+                  const ov   = exportMode ? 'visible' : 'hidden';
                   return (
                     <div
                       key={`${day}_${blockKey}`}
-                      onClick={() => toggle(blockKey)}
+                      onClick={exportMode ? undefined : () => toggle(blockKey)}
                       style={{
                         position: 'absolute',
                         left: inset, right: inset, top,
                         height: 'auto',
                         minHeight: natH,
-                        maxHeight: isExpanded ? 600 : natH,
+                        maxHeight: exportMode ? 9999 : (isExpanded ? 600 : natH),
                         background: color.bg,
-                        border: `${isExpanded ? 2 : 1.5}px solid ${color.border}`,
+                        border: `${isExpanded && !exportMode ? 2 : 1.5}px solid ${color.border}`,
                         borderRadius: compact ? 4 : 7,
-                        padding: compact ? '2px 3px' : '3px 5px',
+                        padding: exportMode ? '3px 5px 8px 5px' : (compact ? '2px 3px' : '3px 5px'),
                         overflow: 'hidden',
                         zIndex: isExpanded ? 10 : 2,
-                        cursor: 'pointer',
-                        boxShadow: isExpanded ? `0 3px 14px ${color.border}66` : 'none',
-                        transition: 'box-shadow 0.15s, max-height 0.2s ease',
+                        cursor: exportMode ? 'default' : 'pointer',
+                        boxShadow: isExpanded && !exportMode ? `0 3px 14px ${color.border}66` : 'none',
+                        transition: exportMode ? 'none' : 'box-shadow 0.15s, max-height 0.2s ease',
                       }}
                     >
                       {/* Line 1: code (or label when no code) */}
-                      <div style={{ fontSize: fs, fontWeight: 700, color: color.text, lineHeight: 1.3, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: fs, fontWeight: 700, color: color.text, lineHeight: 1.3, whiteSpace: wrap, overflow: ov, textOverflow: 'ellipsis' }}>
                         {b.code || b.label}
                       </div>
 
                       {/* Line 2: full course name (when code is separate) */}
                       {hasCode && (
-                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.9, lineHeight: 1.3, marginTop: 1, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.9, lineHeight: 1.3, marginTop: 1, whiteSpace: wrap, overflow: ov, textOverflow: 'ellipsis' }}>
                           {b.label}
                         </div>
                       )}
 
                       {/* Line 3: professor */}
                       {b.professor && (
-                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.75, lineHeight: 1.3, marginTop: 1, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.75, lineHeight: 1.3, marginTop: 1, whiteSpace: wrap, overflow: ov, textOverflow: 'ellipsis' }}>
                           {b.professor}
                         </div>
                       )}
 
                       {/* Line 4: time */}
-                      <div style={{ fontSize: fsSub, color: color.text, opacity: 0.65, lineHeight: 1.3, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: fsSub, color: color.text, opacity: 0.65, lineHeight: 1.3, marginTop: 1, whiteSpace: 'nowrap', overflow: ov, textOverflow: 'ellipsis' }}>
                         {formatTime(b.startTime)}–{formatTime(b.endTime)}
                       </div>
 
@@ -221,11 +223,11 @@ export default function WeeklyCalendar({ blocks, blocked }) {
                         {b.credits} {b.credits === 1 ? 'credit' : 'credits'}
                       </div>
 
-                      {/* Expand / collapse indicator */}
-                      {isExpanded
+                      {/* Expand / collapse indicator — hidden in exportMode */}
+                      {!exportMode && (isExpanded
                         ? <div style={{ fontSize: fsSub - 1, color: color.text, opacity: 0.4, marginTop: 4, textAlign: 'right' }}>▴ less</div>
                         : <div style={{ position: 'absolute', bottom: 1, right: 3, fontSize: fsSub - 1, color: color.text, opacity: 0.35, lineHeight: 1 }}>▾</div>
-                      }
+                      )}
                     </div>
                   );
                 })}

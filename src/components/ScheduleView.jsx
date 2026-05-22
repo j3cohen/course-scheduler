@@ -108,34 +108,17 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
     let root = null;
     let container = null;
     try {
-      // Measure text to find the minimum column width that fits all content
-      const ctx2d = document.createElement('canvas').getContext('2d');
-      const tw = (text, font) => { ctx2d.font = font; return ctx2d.measureText(text).width; };
-      const BLOCK_H_PAD = 16; // 2*(inset:3 + hpad:5) in non-compact mode
+      // Fixed column width so text wraps at ~18 chars — compact, readable export
+      const EXPORT_COL_W = 130;
       const LABEL_W = 44;
-      const MIN_COL = 90; // floor keeps total > 480 so non-compact mode is used
-
-      let maxTextW = 0;
-      for (const b of viewedBlocks) {
-        const candidates = [
-          tw(b.code || b.label, '700 10px Inter,system-ui,sans-serif'),
-          b.code ? tw(b.label, '400 9px Inter,system-ui,sans-serif') : 0,
-          b.professor ? tw(b.professor, '400 9px Inter,system-ui,sans-serif') : 0,
-          tw(`${formatTime(b.startTime)}–${formatTime(b.endTime)}`, '400 9px Inter,system-ui,sans-serif'),
-          tw(`${b.credits} ${b.credits === 1 ? 'credit' : 'credits'}`, '700 9px Inter,system-ui,sans-serif'),
-        ];
-        maxTextW = Math.max(maxTextW, ...candidates);
-      }
-      const colW = Math.max(MIN_COL, Math.ceil(maxTextW) + BLOCK_H_PAD + 6);
-      const calWidth = LABEL_W + 5 * colW;
+      const calWidth = LABEL_W + 5 * EXPORT_COL_W;
       const PAD = 12;
 
-      // Render an off-screen calendar at the computed optimal size
       container = document.createElement('div');
       container.style.cssText = `position:fixed;top:-9999px;left:-9999px;width:${calWidth + PAD * 2}px;background:#fff;padding:${PAD}px;box-sizing:border-box;`;
       document.body.appendChild(container);
       root = createRoot(container);
-      root.render(React.createElement(WeeklyCalendar, { blocks: viewedBlocks, blocked: committedBlocked }));
+      root.render(React.createElement(WeeklyCalendar, { blocks: viewedBlocks, blocked: committedBlocked, exportMode: true }));
 
       // Wait for ResizeObserver inside WeeklyCalendar to fire and re-render
       await new Promise(r => setTimeout(r, 200));
