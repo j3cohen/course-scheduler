@@ -73,19 +73,35 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
       const canvas = await html2canvas(calendarRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
       const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
 
-      // Try clipboard first; fall back to download
+      // 1. Try clipboard (desktop)
       try {
         await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
         setCopyState('copied');
-      } catch {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'schedule.png';
-        a.click();
-        URL.revokeObjectURL(url);
-        setCopyState('downloaded');
+        setTimeout(() => setCopyState('idle'), 2500);
+        return;
+      } catch { /* fall through */ }
+
+      // 2. Try Web Share API (mobile — shows share sheet with Save Image option)
+      const file = new File([blob], 'schedule.png', { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'My Schedule' });
+          setCopyState('shared');
+          setTimeout(() => setCopyState('idle'), 2500);
+          return;
+        } catch (e) {
+          if (e?.name === 'AbortError') { setCopyState('idle'); return; }
+        }
       }
+
+      // 3. Fall back to download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'schedule.png';
+      a.click();
+      URL.revokeObjectURL(url);
+      setCopyState('downloaded');
       setTimeout(() => setCopyState('idle'), 2500);
     } catch {
       setCopyState('error');
@@ -228,6 +244,7 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
                 <button onClick={handleCopy} disabled={copyState === 'copying'} style={copyBtn(copyState)}>
                   {copyState === 'copying' ? 'Generating…'
                     : copyState === 'copied' ? '✓ Copied!'
+                    : copyState === 'shared' ? '✓ Shared!'
                     : copyState === 'downloaded' ? '✓ Downloaded!'
                     : copyState === 'error' ? '✕ Failed'
                     : '⎘ Export image'}
@@ -377,8 +394,8 @@ const listRow = (isFinal) => ({
 const copyBtn = (state) => ({
   fontSize: 12, fontWeight: 600, borderRadius: 7, padding: '6px 12px',
   border: '1.5px solid var(--gray-200)',
-  background: (state === 'copied' || state === 'downloaded') ? 'var(--green-light)' : state === 'error' ? 'var(--red-light)' : 'var(--gray-100)',
-  color: (state === 'copied' || state === 'downloaded') ? 'var(--green)' : state === 'error' ? 'var(--red)' : 'var(--gray-600)',
+  background: ['copied', 'shared', 'downloaded'].includes(state) ? 'var(--green-light)' : state === 'error' ? 'var(--red-light)' : 'var(--gray-100)',
+  color: ['copied', 'shared', 'downloaded'].includes(state) ? 'var(--green)' : state === 'error' ? 'var(--red)' : 'var(--gray-600)',
   cursor: state === 'copying' ? 'wait' : 'pointer',
   whiteSpace: 'nowrap',
   transition: 'background 0.2s, color 0.2s',
