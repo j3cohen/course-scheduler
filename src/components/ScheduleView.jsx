@@ -85,7 +85,7 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
       const file = new File([blob], 'schedule.png', { type: 'image/png' });
       if (navigator.canShare?.({ files: [file] })) {
         try {
-          await navigator.share({ files: [file], title: 'My Schedule' });
+          await navigator.share({ files: [file] });
           setCopyState('shared');
           setTimeout(() => setCopyState('idle'), 2500);
           return;
@@ -117,10 +117,10 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
     setShowSaveInput(false);
   }
 
-  const isAlreadySaved = useMemo(() => {
-    if (!currentSchedule) return false;
+  const savedMatch = useMemo(() => {
+    if (!currentSchedule) return null;
     const key = JSON.stringify(currentSchedule.map(x => x.section.id).sort());
-    return savedSchedules.some(s => JSON.stringify(s.schedule.map(x => x.section.id).sort()) === key);
+    return savedSchedules.find(s => JSON.stringify(s.schedule.map(x => x.section.id).sort()) === key) ?? null;
   }, [currentSchedule, savedSchedules]);
 
   const hasCourses = courses.some(c => c.sections.length > 0);
@@ -189,7 +189,7 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span style={creditBadge(currentCredits, minCredits, maxCredits)}>{currentCredits} cr</span>
-            {!isAlreadySaved ? (
+            {!savedMatch ? (
               showSaveInput ? (
                 <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
                   <input
@@ -207,7 +207,10 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
                 <button onClick={() => setShowSaveInput(true)} style={saveSchedBtn}>♡ Save</button>
               )
             ) : (
-              <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 600 }}>✓ Saved</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 600 }}>✓ {savedMatch.name}</span>
+                <button onClick={() => onDeleteSaved(savedMatch.id)} style={unsaveBtn} title="Remove from saved">✕</button>
+              </div>
             )}
           </div>
         </div>
@@ -367,6 +370,11 @@ const saveConfirmBtn = {
 const cancelSmBtn = {
   background: 'var(--red-light)', color: 'var(--red)', border: 'none',
   borderRadius: 7, padding: '6px 10px', fontSize: 13, cursor: 'pointer',
+};
+const unsaveBtn = {
+  background: 'none', border: 'none', color: 'var(--gray-400)',
+  fontSize: 12, cursor: 'pointer', padding: '2px 4px', lineHeight: 1,
+  borderRadius: 4,
 };
 const calendarCard = {
   background: 'var(--white)', borderRadius: 'var(--radius-lg)',
