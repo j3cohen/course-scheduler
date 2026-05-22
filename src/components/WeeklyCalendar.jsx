@@ -171,8 +171,26 @@ export default function WeeklyCalendar({ blocks, blocked, exportMode = false }) 
                   // and grows with content when maxHeight is released.
                   // overflow:'hidden' is safe here — height:auto sizes the box to content exactly,
                   // so nothing is ever clipped when expanded.
-                  const wrap = exportMode ? 'normal' : (isExpanded ? 'normal' : 'nowrap');
-                  const ov   = exportMode ? 'visible' : 'hidden';
+                  const wrap  = exportMode ? 'normal' : (isExpanded ? 'normal' : 'nowrap');
+                  // lineHeight 1.5 in export gives enough half-leading (2.25px) to contain
+                  // descenders (~2px) within the line box, so overflow:hidden won't clip them.
+                  const lineH = exportMode ? 1.5 : 1.3;
+
+                  // Pre-truncate in exportMode so '…' is literally in the DOM string
+                  // (webkit-line-clamp is unreliable in html2canvas).
+                  let exportLabel = b.label;
+                  let exportProf  = b.professor;
+                  if (exportMode && containerWidth > 100) {
+                    const colW  = (containerWidth - LABEL_W) / 5;
+                    const textW = Math.max(40, colW - 2 * inset - 10);
+                    const cpl   = Math.floor(textW / (fsSub * 0.56)); // Inter ≈ 0.56em avg
+                    if (hasCode && b.label.length > 2 * cpl) {
+                      exportLabel = b.label.slice(0, 2 * cpl - 1) + '…';
+                    }
+                    if (b.professor && b.professor.length > cpl) {
+                      exportProf = b.professor.slice(0, cpl - 1) + '…';
+                    }
+                  }
                   return (
                     <div
                       key={`${day}_${blockKey}`}
@@ -182,7 +200,7 @@ export default function WeeklyCalendar({ blocks, blocked, exportMode = false }) 
                         left: inset, right: inset, top,
                         height: 'auto',
                         minHeight: natH,
-                        maxHeight: exportMode ? 9999 : (isExpanded ? 600 : natH),
+                        maxHeight: exportMode ? natH : (isExpanded ? 600 : natH),
                         background: color.bg,
                         border: `${isExpanded && !exportMode ? 2 : 1.5}px solid ${color.border}`,
                         borderRadius: compact ? 4 : 7,
@@ -194,32 +212,32 @@ export default function WeeklyCalendar({ blocks, blocked, exportMode = false }) 
                         transition: exportMode ? 'none' : 'box-shadow 0.15s, max-height 0.2s ease',
                       }}
                     >
-                      {/* Line 1: code (or label when no code) */}
-                      <div style={{ fontSize: fs, fontWeight: 700, color: color.text, lineHeight: 1.3, whiteSpace: wrap, overflow: ov, textOverflow: 'ellipsis' }}>
+                      {/* Line 1: code (or label when no code) — always 1 line */}
+                      <div style={{ fontSize: fs, fontWeight: 700, color: color.text, lineHeight: lineH, whiteSpace: exportMode ? 'nowrap' : wrap, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {b.code || b.label}
                       </div>
 
-                      {/* Line 2: full course name (when code is separate) */}
+                      {/* Line 2: course name — pre-truncated to ≤2 lines in exportMode */}
                       {hasCode && (
-                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.9, lineHeight: 1.3, marginTop: 1, whiteSpace: wrap, overflow: ov, textOverflow: 'ellipsis' }}>
-                          {b.label}
+                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.9, lineHeight: lineH, marginTop: 1, whiteSpace: exportMode ? 'normal' : wrap, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {exportMode ? exportLabel : b.label}
                         </div>
                       )}
 
-                      {/* Line 3: professor */}
+                      {/* Line 3: professor — pre-truncated to 1 line in exportMode */}
                       {b.professor && (
-                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.75, lineHeight: 1.3, marginTop: 1, whiteSpace: wrap, overflow: ov, textOverflow: 'ellipsis' }}>
-                          {b.professor}
+                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.75, lineHeight: lineH, marginTop: 1, whiteSpace: exportMode ? 'normal' : wrap, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {exportMode ? exportProf : b.professor}
                         </div>
                       )}
 
                       {/* Line 4: time */}
-                      <div style={{ fontSize: fsSub, color: color.text, opacity: 0.65, lineHeight: 1.3, marginTop: 1, whiteSpace: 'nowrap', overflow: ov, textOverflow: 'ellipsis' }}>
+                      <div style={{ fontSize: fsSub, color: color.text, opacity: 0.65, lineHeight: lineH, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {formatTime(b.startTime)}–{formatTime(b.endTime)}
                       </div>
 
                       {/* Line 5: credits */}
-                      <div style={{ fontSize: fsSub, fontWeight: 700, color: color.text, opacity: 0.55, lineHeight: 1.3, marginTop: 1, whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: fsSub, fontWeight: 700, color: color.text, opacity: 0.55, lineHeight: lineH, marginTop: 1, whiteSpace: 'nowrap' }}>
                         {b.credits} {b.credits === 1 ? 'credit' : 'credits'}
                       </div>
 
