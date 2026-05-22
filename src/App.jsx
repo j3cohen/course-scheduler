@@ -116,8 +116,8 @@ const header = {
   position: 'sticky', top: 0, zIndex: 100,
 };
 const headerInner = {
-  maxWidth: 960, margin: '0 auto', padding: '14px 24px',
-  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+  maxWidth: 960, margin: '0 auto', padding: 'clamp(10px, 2vw, 14px) clamp(12px, 3vw, 24px)',
+  display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
 };
 const logoMark = {
   width: 40, height: 40, borderRadius: 10,
@@ -153,5 +153,5 @@ const tabCount = (active) => ({
   background: active ? 'var(--navy)' : 'var(--gray-200)',
   color: active ? 'var(--white)' : 'var(--gray-500)',
 });
-const main = { flex: 1, padding: '24px 16px' };
+const main = { flex: 1, padding: 'clamp(12px, 3vw, 24px) clamp(10px, 3vw, 20px)' };
 const content = { maxWidth: 960, margin: '0 auto' };

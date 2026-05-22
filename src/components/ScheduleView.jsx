@@ -306,7 +306,8 @@ const cancelSmBtn = {
   borderRadius: 7, padding: '6px 10px', fontSize: 13, cursor: 'pointer',
 };
 const calendarCard = {
-  background: 'var(--white)', borderRadius: 'var(--radius-lg)', padding: '16px 18px',
+  background: 'var(--white)', borderRadius: 'var(--radius-lg)',
+  padding: 'clamp(8px, 2vw, 16px) clamp(8px, 2vw, 18px)',
   border: '1.5px solid var(--gray-200)', boxShadow: 'var(--shadow-sm)', marginBottom: 14,
 };
 const toggleBtn = (active) => ({
