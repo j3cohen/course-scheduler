@@ -18,14 +18,20 @@ const COURSE_COLORS = [
 ];
 const FINAL_COLOR = { bg: '#EFF6FF', border: '#041E42', text: '#041E42' };
 
-// Approximate height (px) needed to fit N lines of text + padding
-function linesHeight(n, compact) {
-  const lineH = compact ? 10 : 12;
-  const pad   = compact ? 4  : 6;
-  return n * lineH + pad;
+// Group sorted minute-values into consecutive 30-min runs
+function groupConsecutiveSlots(sortedMins) {
+  const groups = [];
+  for (const m of sortedMins) {
+    if (groups.length > 0 && groups[groups.length - 1].end === m) {
+      groups[groups.length - 1].end = m + 30;
+    } else {
+      groups.push({ start: m, end: m + 30 });
+    }
+  }
+  return groups;
 }
 
-export default function WeeklyCalendar({ blocks }) {
+export default function WeeklyCalendar({ blocks, blocked }) {
   const containerRef = useRef(null);
   const [containerWidth, setContainerWidth] = useState(560);
   const [selectedKey, setSelectedKey] = useState(null);
@@ -39,11 +45,11 @@ export default function WeeklyCalendar({ blocks }) {
     return () => ro.disconnect();
   }, []);
 
-  const compact  = containerWidth < 480;
-  const LABEL_W  = compact ? 26 : 44;
-  const HOUR_H   = compact ? 42 : 54;
-  const totalH   = (END_HOUR - START_HOUR) * HOUR_H;
-  const hours    = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+  const compact = containerWidth < 480;
+  const LABEL_W = compact ? 26 : 44;
+  const HOUR_H  = compact ? 42 : 54;
+  const totalH  = (END_HOUR - START_HOUR) * HOUR_H;
+  const hours   = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 
   const colorMap = {};
   let colorIdx = 0;
@@ -51,6 +57,22 @@ export default function WeeklyCalendar({ blocks }) {
     if (!(b.courseId in colorMap))
       colorMap[b.courseId] = b.isFinal ? FINAL_COLOR : COURSE_COLORS[colorIdx++ % COURSE_COLORS.length];
   });
+
+  // Pre-compute blocked groups per day for rendering
+  const blockedByDay = {};
+  if (blocked && blocked.size > 0) {
+    for (const day of DAYS) {
+      const mins = [];
+      for (const key of blocked) {
+        const [d, hh, mm] = key.split(':');
+        if (d !== day) continue;
+        const m = parseInt(hh) * 60 + parseInt(mm);
+        if (m >= START_HOUR * 60 && m < END_HOUR * 60) mins.push(m);
+      }
+      mins.sort((a, b) => a - b);
+      blockedByDay[day] = groupConsecutiveSlots(mins);
+    }
+  }
 
   function toggle(key) {
     setSelectedKey(prev => prev === key ? null : key);
@@ -86,16 +108,45 @@ export default function WeeklyCalendar({ blocks }) {
         {/* Day columns */}
         <div style={{ flex: 1, display: 'flex' }}>
           {DAYS.map(day => {
-            const dayBlocks = blocks.filter(b => b.days.includes(day));
+            const dayBlocks  = blocks.filter(b => b.days.includes(day));
+            const dayBlocked = blockedByDay[day] || [];
+
             return (
               <div key={day} style={{ flex: 1, position: 'relative', height: totalH, borderLeft: '1px solid var(--gray-200)' }}>
-                {/* Grid lines */}
+                {/* Hour / half-hour grid lines */}
                 {hours.map(h => (
                   <React.Fragment key={h}>
                     <div style={{ position: 'absolute', left: 0, right: 0, top: (h - START_HOUR) * HOUR_H, borderTop: h === START_HOUR ? 'none' : '1px solid var(--gray-100)', height: 1 }} />
                     <div style={{ position: 'absolute', left: 0, right: 0, top: (h - START_HOUR) * HOUR_H + HOUR_H / 2, borderTop: '1px dashed var(--gray-100)', height: 1 }} />
                   </React.Fragment>
                 ))}
+
+                {/* Blocked time overlays */}
+                {dayBlocked.map((g, i) => {
+                  const top    = ((g.start - START_HOUR * 60) / 60) * HOUR_H;
+                  const height = ((g.end - g.start) / 60) * HOUR_H;
+                  return (
+                    <div key={i} style={{
+                      position: 'absolute', left: 0, right: 0, top, height,
+                      background: 'repeating-linear-gradient(135deg, rgba(220,38,38,0.07) 0px, rgba(220,38,38,0.07) 4px, transparent 4px, transparent 10px)',
+                      borderLeft: '2.5px solid rgba(220,38,38,0.35)',
+                      zIndex: 1,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      {height >= 18 && (
+                        <span style={{
+                          fontSize: compact ? 6 : 8, fontWeight: 800,
+                          color: 'rgba(220,38,38,0.45)',
+                          textTransform: 'uppercase', letterSpacing: '0.06em',
+                          writingMode: height < 30 ? 'horizontal-tb' : 'vertical-rl',
+                          transform: height >= 30 ? 'rotate(180deg)' : 'none',
+                        }}>
+                          blocked
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
 
                 {/* Course blocks */}
                 {dayBlocks.map(b => {
@@ -108,67 +159,54 @@ export default function WeeklyCalendar({ blocks }) {
                   const color      = colorMap[b.courseId];
                   const inset      = compact ? 1 : 3;
                   const hasCode    = Boolean(b.code);
-
-                  // Which lines fit in natural height (1=code/label, 2=name, 3=prof, 4=time)
-                  const showName = natH >= linesHeight(2, compact) && hasCode;
-                  const showProf = natH >= linesHeight(hasCode ? 3 : 2, compact) && Boolean(b.professor);
-                  const showTime = natH >= linesHeight((hasCode ? 1 : 0) + (showName ? 1 : 0) + (showProf ? 1 : 0) + 1, compact);
-                  const hasHidden = (hasCode && !showName) || (b.professor && !showProf) || !showTime;
-
-                  const fontSize     = compact ? 8  : 10;
-                  const fontSizeSm   = compact ? 7  : 9;
-                  const lineStyle    = { fontSize, fontWeight: 700, color: color.text, lineHeight: 1.25, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis' };
-                  const subLineStyle = { fontSize: fontSizeSm, color: color.text, opacity: 0.8, lineHeight: 1.25, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', marginTop: 1 };
+                  const fs         = compact ? 8  : 10;
+                  const fsSub      = compact ? 7  : 9;
 
                   return (
                     <div
-                      key={key}
-                      onClick={() => (hasHidden || isExpanded) && toggle(key)}
+                      key={`${day}_${key}`}
+                      onClick={() => toggle(key)}
                       style={{
                         position: 'absolute',
                         left: inset, right: inset, top,
+                        // height:auto grows with content; overflow:hidden clips to that grown height
+                        // so background always covers all visible text
                         height: isExpanded ? 'auto' : natH,
-                        minHeight: isExpanded ? natH : undefined,
+                        minHeight: natH,
                         background: color.bg,
                         border: `${isExpanded ? 2 : 1.5}px solid ${color.border}`,
                         borderRadius: compact ? 4 : 7,
                         padding: compact ? '2px 3px' : '3px 5px',
-                        overflow: isExpanded ? 'visible' : 'hidden',
+                        overflow: 'hidden',
                         zIndex: isExpanded ? 10 : 2,
-                        cursor: (hasHidden || isExpanded) ? 'pointer' : 'default',
-                        boxShadow: isExpanded ? `0 3px 14px ${color.border}55` : 'none',
+                        cursor: 'pointer',
+                        boxShadow: isExpanded ? `0 3px 14px ${color.border}66` : 'none',
                         transition: 'box-shadow 0.15s',
                       }}
                     >
-                      {/* Line 1: code or full label when no code */}
-                      <div style={lineStyle}>
+                      {/* All lines always rendered; overflow:hidden clips when collapsed */}
+                      <div style={{ fontSize: fs, fontWeight: 700, color: color.text, lineHeight: 1.3, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {b.code || b.label}
-                        {!hasCode && b.credits && (
-                          <span style={{ fontWeight: 600, opacity: 0.65, marginLeft: 3 }}>{b.credits}cr</span>
-                        )}
+                      </div>
+                      {hasCode && (
+                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.9, lineHeight: 1.3, marginTop: 1, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {b.label}
+                        </div>
+                      )}
+                      {b.professor && (
+                        <div style={{ fontSize: fsSub, color: color.text, opacity: 0.75, lineHeight: 1.3, marginTop: 1, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {b.professor}
+                        </div>
+                      )}
+                      <div style={{ fontSize: fsSub, color: color.text, opacity: 0.65, lineHeight: 1.3, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {formatTime(b.startTime)}–{formatTime(b.endTime)}
                       </div>
 
-                      {/* Line 2: full name (when there's a code) */}
-                      {(showName || isExpanded) && hasCode && (
-                        <div style={subLineStyle}>{b.label}</div>
-                      )}
-
-                      {/* Line 3: professor */}
-                      {(showProf || isExpanded) && b.professor && (
-                        <div style={subLineStyle}>{b.professor}</div>
-                      )}
-
-                      {/* Line 4: time */}
-                      {(showTime || isExpanded) && (
-                        <div style={subLineStyle}>{formatTime(b.startTime)}–{formatTime(b.endTime)}</div>
-                      )}
-
-                      {/* Credits + expand/collapse indicator */}
-                      {isExpanded ? (
-                        <div style={{ fontSize: fontSizeSm, color: color.text, opacity: 0.5, marginTop: 2, textAlign: 'right' }}>▴ less</div>
-                      ) : hasHidden ? (
-                        <div style={{ position: 'absolute', bottom: 1, right: 3, fontSize: fontSizeSm, color: color.text, opacity: 0.45, lineHeight: 1 }}>▾</div>
-                      ) : null}
+                      {/* Expand / collapse chevron */}
+                      {isExpanded
+                        ? <div style={{ fontSize: fsSub - 1, color: color.text, opacity: 0.4, marginTop: 3, textAlign: 'right' }}>▴</div>
+                        : <div style={{ position: 'absolute', bottom: 1, right: 3, fontSize: fsSub - 1, color: color.text, opacity: 0.35, lineHeight: 1 }}>▾</div>
+                      }
                     </div>
                   );
                 })}

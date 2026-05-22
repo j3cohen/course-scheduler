@@ -179,7 +179,7 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
         <>
           <div style={calendarCard}>
             {view === 'calendar'
-              ? <WeeklyCalendar blocks={viewedBlocks} />
+              ? <WeeklyCalendar blocks={viewedBlocks} blocked={blocked} />
               : <CourseListView schedule={viewedSchedule} credits={viewedCredits} />
             }
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-200)' }}>

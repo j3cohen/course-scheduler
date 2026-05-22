@@ -32,12 +32,15 @@ function selectionConflicts(selections, newSection) {
   return selections.some(s => sectionsConflict(s.section, newSection));
 }
 
-// Check if a section overlaps any blocked 30-min cell (blocked cells don't apply to finals)
+// Check if a section overlaps any blocked 30-min cell (blocked cells don't apply to finals).
+// Round start DOWN to the nearest :00/:30 boundary so courses starting at :15 or :45
+// are still matched against the grid cells they visually overlap.
 function sectionOverlapsBlocked(section, blockedCells) {
   if (!blockedCells || blockedCells.size === 0) return false;
   for (const day of section.days) {
-    let t = timeToMinutes(section.startTime);
-    const end = timeToMinutes(section.endTime);
+    const start = timeToMinutes(section.startTime);
+    const end   = timeToMinutes(section.endTime);
+    let t = Math.floor(start / 30) * 30; // snap to nearest :00 or :30
     while (t < end) {
       const key = `${day}:${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
       if (blockedCells.has(key)) return true;
