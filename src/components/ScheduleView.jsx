@@ -29,6 +29,20 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
   const [copyState, setCopyState] = useState('idle'); // 'idle' | 'copying' | 'copied' | 'error'
 
   const calendarRef = useRef(null);
+  const touchStartX = useRef(null);
+
+  function handleTouchStart(e) {
+    touchStartX.current = e.touches[0].clientX;
+  }
+
+  function handleTouchEnd(e) {
+    if (touchStartX.current === null || viewingSaved || !generated?.schedules?.length) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    touchStartX.current = null;
+    if (Math.abs(dx) < 50) return;
+    if (dx < 0) setCurrentIdx(i => Math.min(generated.schedules.length - 1, i + 1));
+    else setCurrentIdx(i => Math.max(0, i - 1));
+  }
 
   function handleCreditChange(mn, mx) {
     setMinCredits(mn);
@@ -233,7 +247,7 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
       {/* Content + view toggle */}
       {viewedSchedule && (
         <>
-          <div style={calendarCard}>
+          <div style={calendarCard} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
             {view === 'calendar'
               ? <div ref={calendarRef} style={{ background: '#fff', padding: 4 }}><WeeklyCalendar blocks={viewedBlocks} blocked={committedBlocked} /></div>
               : <CourseListView schedule={viewedSchedule} credits={viewedCredits} />
