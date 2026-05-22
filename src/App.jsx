@@ -27,10 +27,10 @@ export default function App() {
             <div style={logoMark}>⚖</div>
             <div>
               <div style={{ fontFamily: "'EB Garamond', serif", fontSize: 22, fontWeight: 600, color: 'var(--white)', lineHeight: 1.2 }}>
-                Georgetown Law
+                Georgetown University Law Center
               </div>
               <div style={{ fontSize: 12, color: 'rgba(200,150,60,0.9)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500 }}>
-                Schedule Planner
+                Not Built-in Schedule Planner
               </div>
             </div>
           </div>
