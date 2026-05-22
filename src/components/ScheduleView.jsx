@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import html2canvas from 'html2canvas';
 import { v4 as uuid } from 'uuid';
 import { generateSchedules, scheduleCredits, calendarBlocks, formatTime, formatDays } from '../utils/scheduler.js';
+import { loadHidden, saveHidden } from '../utils/storage.js';
 import WeeklyCalendar from './WeeklyCalendar.jsx';
 import FilterPanel from './FilterPanel.jsx';
 
@@ -26,21 +27,27 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
   const [view, setView] = useState('calendar');
   const [saveName, setSaveName] = useState('');
   const [showSaveInput, setShowSaveInput] = useState(false);
-  const [copyState, setCopyState] = useState('idle'); // 'idle' | 'copying' | 'copied' | 'error'
+  const [copyState, setCopyState] = useState('idle');
+  const [hiddenKeys, setHiddenKeys] = useState(() => loadHidden());
+  const [showHidden, setShowHidden] = useState(false);
 
   const calendarRef = useRef(null);
   const touchStartX = useRef(null);
+
+  function scheduleKey(schedule) {
+    return JSON.stringify(schedule.map(x => x.section.id).sort());
+  }
 
   function handleTouchStart(e) {
     touchStartX.current = e.touches[0].clientX;
   }
 
   function handleTouchEnd(e) {
-    if (touchStartX.current === null || viewingSaved || !generated?.schedules?.length) return;
+    if (touchStartX.current === null || viewingSaved || !visibleSchedules.length) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     touchStartX.current = null;
     if (Math.abs(dx) < 50) return;
-    if (dx < 0) setCurrentIdx(i => Math.min(generated.schedules.length - 1, i + 1));
+    if (dx < 0) setCurrentIdx(i => Math.min(visibleSchedules.length - 1, i + 1));
     else setCurrentIdx(i => Math.max(0, i - 1));
   }
 
@@ -67,13 +74,27 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
       setGenerated(result);
       setCommittedBlocked(opts.blk);
       setCurrentIdx(0);
+      setShowHidden(false);
       setIsGenerating(false);
     }, 50);
   }
 
   function handleGenerate() { runGenerate(); }
 
-  const currentSchedule = generated?.schedules?.[currentIdx] || null;
+  const visibleSchedules = useMemo(() => {
+    if (!generated?.schedules) return [];
+    if (showHidden) return generated.schedules;
+    return generated.schedules.filter(s => !hiddenKeys.has(scheduleKey(s)));
+  }, [generated, hiddenKeys, showHidden]);
+
+  const hiddenCount = useMemo(() => {
+    if (!generated?.schedules) return 0;
+    return generated.schedules.filter(s => hiddenKeys.has(scheduleKey(s))).length;
+  }, [generated, hiddenKeys]);
+
+  const safeCurrentIdx = Math.min(currentIdx, Math.max(0, visibleSchedules.length - 1));
+  const currentSchedule = visibleSchedules[safeCurrentIdx] ?? null;
+  const isCurrentHidden = currentSchedule ? hiddenKeys.has(scheduleKey(currentSchedule)) : false;
   const currentCredits = currentSchedule ? scheduleCredits(currentSchedule) : 0;
 
   const viewedSchedule = viewingSaved ? viewingSaved.schedule : currentSchedule;
@@ -123,6 +144,16 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
     }
   }
 
+  function handleHide() {
+    if (!currentSchedule) return;
+    setHiddenKeys(prev => new Set([...prev, scheduleKey(currentSchedule)]));
+  }
+
+  function handleUnhide() {
+    if (!currentSchedule) return;
+    setHiddenKeys(prev => { const s = new Set(prev); s.delete(scheduleKey(currentSchedule)); return s; });
+  }
+
   function handleSave() {
     if (!currentSchedule) return;
     const name = saveName.trim() || `Schedule ${savedSchedules.length + 1}`;
@@ -133,11 +164,13 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
 
   const savedMatch = useMemo(() => {
     if (!currentSchedule) return null;
-    const key = JSON.stringify(currentSchedule.map(x => x.section.id).sort());
-    return savedSchedules.find(s => JSON.stringify(s.schedule.map(x => x.section.id).sort()) === key) ?? null;
+    const key = scheduleKey(currentSchedule);
+    return savedSchedules.find(s => scheduleKey(s.schedule) === key) ?? null;
   }, [currentSchedule, savedSchedules]);
 
   const hasCourses = courses.some(c => c.sections.length > 0);
+
+  useEffect(() => { saveHidden(hiddenKeys); }, [hiddenKeys]);
 
   // Auto-generate with defaults the first time the tab is opened
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -159,76 +192,39 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
         onBlockedChange={setBlocked}
       />
 
-      {/* Generate bar */}
+      {/* Generate + navigator card */}
       <div style={generateBar}>
-        <div style={{ flex: 1 }}>
-          {generated && !generated.error && (
-            generated.schedules.length === 0 ? (
-              <span style={{ fontSize: 13, color: '#92400E' }}>
-                No valid schedules found with current filters — try adjusting credits, courses, or blocked times.
-              </span>
-            ) : (
-              <span style={{ fontSize: 14, color: 'var(--green)', fontWeight: 600 }}>
-                ✓ {generated.schedules.length}{generated.schedules.length === MAX_SCHEDULES ? '+' : ''} valid schedule{generated.schedules.length !== 1 ? 's' : ''} found
-                {generated.schedules.length === MAX_SCHEDULES && <span style={{ fontSize: 12, color: 'var(--gray-500)', fontWeight: 400, marginLeft: 6 }}>(capped at {MAX_SCHEDULES})</span>}
-              </span>
-            )
-          )}
-          {generated?.error && <span style={{ fontSize: 13, color: 'var(--red)' }}>{generated.error}</span>}
-          {!generated && !isGenerating && hasCourses && (
-            <span style={{ fontSize: 13, color: 'var(--gray-400)' }}>Set filters above, then generate.</span>
-          )}
-          {!hasCourses && <span style={{ fontSize: 13, color: 'var(--gray-400)' }}>Add courses to your Course Bank first.</span>}
-        </div>
-        <button
-          onClick={handleGenerate}
-          disabled={isGenerating || !hasCourses}
-          style={generateBtn(isGenerating || !hasCourses)}
-        >
-          {isGenerating ? 'Generating…' : generated ? '↺ Regenerate' : 'Generate Schedules'}
-        </button>
-      </div>
-
-      {/* Navigator */}
-      {generated?.schedules?.length > 0 && !viewingSaved && (
-        <div style={navigatorBar}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <NavBtn onClick={() => setCurrentIdx(0)} disabled={currentIdx === 0}>«</NavBtn>
-            <NavBtn onClick={() => setCurrentIdx(i => Math.max(0, i - 1))} disabled={currentIdx === 0}>‹</NavBtn>
-            <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)', minWidth: 90, textAlign: 'center' }}>
-              {currentIdx + 1} of {generated.schedules.length}
-            </span>
-            <NavBtn onClick={() => setCurrentIdx(i => Math.min(generated.schedules.length - 1, i + 1))} disabled={currentIdx === generated.schedules.length - 1}>›</NavBtn>
-            <NavBtn onClick={() => setCurrentIdx(generated.schedules.length - 1)} disabled={currentIdx === generated.schedules.length - 1}>»</NavBtn>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <span style={creditBadge(currentCredits, minCredits, maxCredits)}>{currentCredits} cr</span>
-            {!savedMatch ? (
-              showSaveInput ? (
-                <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
-                  <input
-                    autoFocus
-                    placeholder="Name this schedule…"
-                    value={saveName}
-                    onChange={e => setSaveName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSave()}
-                    style={{ border: '1.5px solid var(--gray-300)', borderRadius: 7, padding: '6px 10px', fontSize: 13, width: 170, fontFamily: 'inherit' }}
-                  />
-                  <button onClick={handleSave} style={saveConfirmBtn}>Save</button>
-                  <button onClick={() => setShowSaveInput(false)} style={cancelSmBtn}>✕</button>
-                </div>
+        {/* Row 1: status + button */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', width: '100%' }}>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {generated && !generated.error && (
+              generated.schedules.length === 0 ? (
+                <span style={{ fontSize: 13, color: '#92400E' }}>
+                  No valid schedules found — try adjusting credits, courses, or blocked times.
+                </span>
               ) : (
-                <button onClick={() => setShowSaveInput(true)} style={saveSchedBtn}>♡ Save</button>
+                <span style={{ fontSize: 14, color: 'var(--green)', fontWeight: 600 }}>
+                  ✓ {generated.schedules.length}{generated.schedules.length === MAX_SCHEDULES ? '+' : ''} schedule{generated.schedules.length !== 1 ? 's' : ''} found
+                </span>
               )
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 600 }}>✓ {savedMatch.name}</span>
-                <button onClick={() => onDeleteSaved(savedMatch.id)} style={unsaveBtn} title="Remove from saved">✕</button>
-              </div>
+            )}
+            {generated?.error && <span style={{ fontSize: 13, color: 'var(--red)' }}>{generated.error}</span>}
+            {!generated && !isGenerating && hasCourses && (
+              <span style={{ fontSize: 13, color: 'var(--gray-400)' }}>Set filters above, then generate.</span>
+            )}
+            {!hasCourses && <span style={{ fontSize: 13, color: 'var(--gray-400)' }}>Add courses to your Course Bank first.</span>}
+            {hiddenCount > 0 && (
+              <button onClick={() => setShowHidden(h => !h)} style={showHiddenToggle(showHidden)}>
+                {showHidden ? `● ${hiddenCount} hidden (showing)` : `○ ${hiddenCount} hidden`}
+              </button>
             )}
           </div>
+          <button onClick={handleGenerate} disabled={isGenerating || !hasCourses} style={generateBtn(isGenerating || !hasCourses)}>
+            {isGenerating ? 'Generating…' : generated ? '↺ Regenerate' : 'Generate Schedules'}
+          </button>
         </div>
-      )}
+
+      </div>
 
       {/* Viewing saved schedule bar */}
       {viewingSaved && (
@@ -248,6 +244,50 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
       {viewedSchedule && (
         <>
           <div style={calendarCard} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
+            {/* Navigator — above the exported image */}
+            {visibleSchedules.length > 0 && !viewingSaved && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <NavBtn onClick={() => setCurrentIdx(0)} disabled={safeCurrentIdx === 0}>«</NavBtn>
+                  <NavBtn onClick={() => setCurrentIdx(i => Math.max(0, i - 1))} disabled={safeCurrentIdx === 0}>‹</NavBtn>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy)', minWidth: 90, textAlign: 'center' }}>
+                    {safeCurrentIdx + 1} of {visibleSchedules.length}
+                  </span>
+                  <NavBtn onClick={() => setCurrentIdx(i => Math.min(visibleSchedules.length - 1, i + 1))} disabled={safeCurrentIdx === visibleSchedules.length - 1}>›</NavBtn>
+                  <NavBtn onClick={() => setCurrentIdx(visibleSchedules.length - 1)} disabled={safeCurrentIdx === visibleSchedules.length - 1}>»</NavBtn>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={creditBadge(currentCredits, minCredits, maxCredits)}>{currentCredits} cr</span>
+                  {!savedMatch ? (
+                    showSaveInput ? (
+                      <div style={{ display: 'flex', gap: 7, alignItems: 'center' }}>
+                        <input
+                          autoFocus
+                          placeholder="Name this schedule…"
+                          value={saveName}
+                          onChange={e => setSaveName(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleSave()}
+                          style={{ border: '1.5px solid var(--gray-300)', borderRadius: 7, padding: '6px 10px', fontSize: 13, width: 160, fontFamily: 'inherit' }}
+                        />
+                        <button onClick={handleSave} style={saveConfirmBtn}>Save</button>
+                        <button onClick={() => setShowSaveInput(false)} style={cancelSmBtn}>✕</button>
+                      </div>
+                    ) : (
+                      <button onClick={() => setShowSaveInput(true)} style={saveSchedBtn}>♡ Save</button>
+                    )
+                  ) : (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ fontSize: 13, color: 'var(--green)', fontWeight: 600 }}>✓ {savedMatch.name}</span>
+                      <button onClick={() => onDeleteSaved(savedMatch.id)} style={unsaveBtn} title="Remove from saved">✕</button>
+                    </div>
+                  )}
+                  {!isCurrentHidden
+                    ? <button onClick={handleHide} style={hideBtn}>Hide</button>
+                    : <button onClick={handleUnhide} style={unhideBtn}>Unhide</button>
+                  }
+                </div>
+              </div>
+            )}
             {view === 'calendar'
               ? <div ref={calendarRef} style={{ background: '#fff', padding: 4 }}><WeeklyCalendar blocks={viewedBlocks} blocked={committedBlocked} /></div>
               : <CourseListView schedule={viewedSchedule} credits={viewedCredits} />
@@ -338,7 +378,7 @@ function CourseListView({ schedule, credits }) {
 }
 
 const generateBar = {
-  display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+  display: 'flex', flexDirection: 'column', gap: 0,
   background: 'var(--white)', borderRadius: 'var(--radius-lg)',
   padding: '14px 18px', marginBottom: 14,
   border: '1.5px solid var(--gray-200)', boxShadow: 'var(--shadow-sm)',
@@ -359,6 +399,24 @@ const navigatorBar = {
   padding: '12px 16px', marginBottom: 14, border: '1.5px solid var(--gray-200)',
   boxShadow: 'var(--shadow-sm)',
 };
+const hideBtn = {
+  fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '4px 8px',
+  background: 'var(--gray-100)', color: 'var(--gray-500)',
+  border: '1px solid var(--gray-200)', cursor: 'pointer', whiteSpace: 'nowrap',
+};
+const unhideBtn = {
+  fontSize: 11, fontWeight: 600, borderRadius: 6, padding: '4px 8px',
+  background: '#FEF3C7', color: '#92400E',
+  border: '1px solid #FCD34D', cursor: 'pointer', whiteSpace: 'nowrap',
+};
+const showHiddenToggle = (active) => ({
+  fontSize: 12, fontWeight: 700, borderRadius: 6, padding: '5px 10px',
+  background: active ? '#FEF3C7' : 'var(--white)',
+  color: active ? '#92400E' : 'var(--gray-400)',
+  border: active ? '1.5px solid #F59E0B' : '1.5px dashed var(--gray-300)',
+  cursor: 'pointer', whiteSpace: 'nowrap',
+  boxShadow: active ? 'inset 0 1px 4px rgba(245,158,11,0.2)' : 'none',
+});
 const navBtnStyle = {
   background: 'var(--gray-100)', color: 'var(--navy)', border: '1.5px solid var(--gray-200)',
   borderRadius: 7, padding: '5px 10px', fontSize: 14, fontWeight: 600,
@@ -394,6 +452,7 @@ const calendarCard = {
   background: 'var(--white)', borderRadius: 'var(--radius-lg)',
   padding: 'clamp(8px, 2vw, 16px) clamp(8px, 2vw, 18px)',
   border: '1.5px solid var(--gray-200)', boxShadow: 'var(--shadow-sm)', marginBottom: 14,
+  touchAction: 'pan-y',
 };
 const toggleBtn = (active) => ({
   padding: '7px 18px', borderRadius: 6, fontSize: 13, fontWeight: 600,

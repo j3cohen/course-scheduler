@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid';
 
 const COURSES_KEY = 'lawsched_courses';
 const SAVED_KEY = 'lawsched_saved';
+const HIDDEN_KEY = 'lawsched_hidden';
 const SEEDED_KEY = 'lawsched_seeded';
 
 const SEED_COURSES = [
@@ -46,4 +47,13 @@ export function loadSaved() {
 
 export function saveSaved(schedules) {
   localStorage.setItem(SAVED_KEY, JSON.stringify(schedules));
+}
+
+export function loadHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+
+export function saveHidden(hiddenKeys) {
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenKeys]));
 }

@@ -117,9 +117,9 @@ export default function FilterPanel({
                 <div>
                   <Label>Courses</Label>
                   <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
-                    <Legend color="#16A34A" bg="#DCFCE7" border="#86EFAC" label="★ Required" hint="in every schedule" />
-                    <Legend color="var(--navy)" bg="#EEF2FF" border="#818CF8" label="Optional" hint="included if it fits" />
-                    <Legend color="var(--gray-500)" bg="var(--gray-100)" border="var(--gray-300)" label="✕ Excluded" hint="never appears" />
+                    <Legend color="#16A34A" bg="#DCFCE7" border="#86EFAC" icon="★" label="required" />
+                    <Legend color="var(--navy)" bg="#EEF2FF" border="#818CF8" icon="" label="included" />
+                    <Legend color="var(--gray-500)" bg="var(--gray-100)" border="var(--gray-300)" icon="✕" label="excluded" />
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
@@ -187,12 +187,18 @@ export default function FilterPanel({
   );
 }
 
-function Legend({ color, bg, border, label, hint }) {
+function Legend({ color, bg, border, icon, label }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-      <div style={{ width: 10, height: 10, borderRadius: 3, background: bg, border: `1.5px solid ${border}`, flexShrink: 0 }} />
+      <div style={{
+        width: 14, height: 14, borderRadius: 3,
+        background: bg, border: `1.5px solid ${border}`, flexShrink: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 7, color, lineHeight: 1, fontWeight: 800,
+      }}>
+        {icon}
+      </div>
       <span style={{ fontSize: 11, color, fontWeight: 600 }}>{label}</span>
-      <span style={{ fontSize: 11, color: 'var(--gray-400)' }}>{hint}</span>
     </div>
   );
 }

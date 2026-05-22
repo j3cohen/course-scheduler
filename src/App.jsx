@@ -116,7 +116,8 @@ const header = {
   position: 'sticky', top: 0, zIndex: 100,
 };
 const headerInner = {
-  maxWidth: 960, margin: '0 auto', padding: 'clamp(10px, 2vw, 14px) clamp(12px, 3vw, 24px)',
+  maxWidth: 'var(--app-max-width)', margin: '0 auto',
+  padding: 'clamp(10px, 2vw, 14px) clamp(12px, 3vw, 24px)',
   display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
 };
 const logoMark = {
@@ -134,7 +135,8 @@ const tabBar = {
   borderBottom: '2px solid var(--gray-200)',
 };
 const tabBarInner = {
-  maxWidth: 960, margin: '0 auto', padding: '0 24px',
+  maxWidth: 'var(--app-max-width)', margin: '0 auto',
+  padding: '0 clamp(12px, 3vw, 24px)',
   display: 'flex', gap: 0,
 };
 const tabBtn = (active) => ({
@@ -154,4 +156,4 @@ const tabCount = (active) => ({
   color: active ? 'var(--white)' : 'var(--gray-500)',
 });
 const main = { flex: 1, padding: 'clamp(12px, 3vw, 24px) clamp(10px, 3vw, 20px)' };
-const content = { maxWidth: 960, margin: '0 auto' };
+const content = { maxWidth: 'var(--app-max-width)', margin: '0 auto' };

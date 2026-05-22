@@ -1,6 +1,7 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  --app-max-width: 100%;
   --navy: #041E42;
   --navy-mid: #0a3060;
   --navy-light: #1a4a8a;
@@ -68,4 +69,8 @@ input, select, textarea {
 /* Mobile: tighten outer padding */
 @media (max-width: 600px) {
   body { font-size: 13px; }
+}
+
+@media (min-width: 1100px) {
+  :root { --app-max-width: 80vw; }
 }

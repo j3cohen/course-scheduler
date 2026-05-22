@@ -216,6 +216,11 @@ export default function WeeklyCalendar({ blocks, blocked }) {
                         {formatTime(b.startTime)}–{formatTime(b.endTime)}
                       </div>
 
+                      {/* Line 5: credits */}
+                      <div style={{ fontSize: fsSub, fontWeight: 700, color: color.text, opacity: 0.55, lineHeight: 1.3, marginTop: 1, whiteSpace: 'nowrap' }}>
+                        {b.credits} {b.credits === 1 ? 'credit' : 'credits'}
+                      </div>
+
                       {/* Expand / collapse indicator */}
                       {isExpanded
                         ? <div style={{ fontSize: fsSub - 1, color: color.text, opacity: 0.4, marginTop: 4, textAlign: 'right' }}>▴ less</div>
