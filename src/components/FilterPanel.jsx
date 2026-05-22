@@ -162,9 +162,17 @@ export default function FilterPanel({
 
           {/* Time blocker */}
           <section>
-            <button onClick={() => setBlockerOpen(o => !o)} style={blockerToggle}>
-              <Label>Block time slots{blockedCount > 0 ? ` · ${blockedCount} blocked` : ''}</Label>
-              <span style={{ fontSize: 12, color: 'var(--gray-400)', transform: blockerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
+            <button onClick={() => setBlockerOpen(o => !o)} style={blockerToggle(blockerOpen, blockedCount > 0)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 13 }}>{blockerOpen ? '🗓' : '🚫'}</span>
+                <Label style={{ margin: 0 }}>Block time slots</Label>
+                {blockedCount > 0 && (
+                  <span style={{ fontSize: 11, background: 'var(--navy)', color: 'var(--white)', borderRadius: 99, padding: '1px 7px', fontWeight: 700 }}>
+                    {blockedCount}
+                  </span>
+                )}
+              </div>
+              <span style={{ fontSize: 12, color: blockerOpen ? 'var(--navy)' : 'var(--gray-400)', transform: blockerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>▾</span>
             </button>
             {blockerOpen && (
               <div style={{ marginTop: 10 }}>
@@ -223,10 +231,13 @@ const textBtn = {
   background: 'var(--gray-100)', border: '1.5px solid var(--gray-200)',
   borderRadius: 5, padding: '3px 10px', cursor: 'pointer',
 };
-const blockerToggle = {
+const blockerToggle = (open, hasBlocks) => ({
   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-  width: '100%', background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-};
+  width: '100%', cursor: 'pointer', padding: '8px 12px',
+  borderRadius: 8, transition: 'all 0.15s',
+  background: open ? 'var(--gray-50)' : hasBlocks ? '#EEF2FF' : 'var(--gray-100)',
+  border: open ? '1.5px solid var(--gray-300)' : hasBlocks ? '1.5px solid #818CF8' : '1.5px solid var(--gray-200)',
+});
 const courseChip = (state) => {
   const styles = {
     required: { bg: '#DCFCE7', border: '#86EFAC', color: '#166534' },

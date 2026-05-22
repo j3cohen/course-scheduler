@@ -102,12 +102,10 @@ export default function CourseBank({ courses, onUpdate }) {
         </div>
       )}
 
-      {courses.length > 0 && (
-        <div style={utilFooter}>
-          <button onClick={() => setShowBulkImport(true)} style={utilBtn}>Load classes</button>
-          <button onClick={handleExport} style={utilBtn}>Save classes</button>
-        </div>
-      )}
+      <div style={utilFooter}>
+        <button onClick={() => setShowBulkImport(true)} style={utilBtn}>Load classes</button>
+        <button onClick={handleExport} disabled={courses.length === 0} style={{ ...utilBtn, opacity: courses.length === 0 ? 0.35 : 1, cursor: courses.length === 0 ? 'default' : 'pointer' }}>Save classes</button>
+      </div>
 
       {showForm && (
         <CourseForm
