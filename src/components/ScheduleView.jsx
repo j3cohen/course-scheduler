@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import html2canvas from 'html2canvas';
 import { v4 as uuid } from 'uuid';
 import { generateSchedules, scheduleCredits, calendarBlocks, formatTime, formatDays } from '../utils/scheduler.js';
 import WeeklyCalendar from './WeeklyCalendar.jsx';
@@ -25,6 +26,9 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
   const [view, setView] = useState('calendar');
   const [saveName, setSaveName] = useState('');
   const [showSaveInput, setShowSaveInput] = useState(false);
+  const [copyState, setCopyState] = useState('idle'); // 'idle' | 'copying' | 'copied' | 'error'
+
+  const calendarRef = useRef(null);
 
   function handleCreditChange(mn, mx) {
     setMinCredits(mn);
@@ -62,6 +66,33 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
   const viewedCredits = viewingSaved ? scheduleCredits(viewingSaved.schedule) : currentCredits;
   const viewedBlocks = viewedSchedule ? calendarBlocks(viewedSchedule) : null;
 
+  async function handleCopy() {
+    if (!calendarRef.current) return;
+    setCopyState('copying');
+    try {
+      const canvas = await html2canvas(calendarRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+
+      // Try clipboard first; fall back to download
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+        setCopyState('copied');
+      } catch {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'schedule.png';
+        a.click();
+        URL.revokeObjectURL(url);
+        setCopyState('downloaded');
+      }
+      setTimeout(() => setCopyState('idle'), 2500);
+    } catch {
+      setCopyState('error');
+      setTimeout(() => setCopyState('idle'), 2500);
+    }
+  }
+
   function handleSave() {
     if (!currentSchedule) return;
     const name = saveName.trim() || `Schedule ${savedSchedules.length + 1}`;
@@ -77,6 +108,10 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
   }, [currentSchedule, savedSchedules]);
 
   const hasCourses = courses.some(c => c.sections.length > 0);
+
+  // Auto-generate with defaults the first time the tab is opened
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (hasCourses) runGenerate(); }, []);
 
   return (
     <div>
@@ -181,14 +216,23 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
         <>
           <div style={calendarCard}>
             {view === 'calendar'
-              ? <WeeklyCalendar blocks={viewedBlocks} blocked={committedBlocked} />
+              ? <div ref={calendarRef} style={{ background: '#fff', padding: 4 }}><WeeklyCalendar blocks={viewedBlocks} blocked={committedBlocked} /></div>
               : <CourseListView schedule={viewedSchedule} credits={viewedCredits} />
             }
-            <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-200)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-200)', flexWrap: 'wrap', gap: 8 }}>
               <div style={{ display: 'flex', gap: 0, background: 'var(--gray-100)', borderRadius: 8, padding: 3 }}>
                 <button onClick={() => setView('calendar')} style={toggleBtn(view === 'calendar')}>Calendar</button>
                 <button onClick={() => setView('list')} style={toggleBtn(view === 'list')}>Course List</button>
               </div>
+              {view === 'calendar' && (
+                <button onClick={handleCopy} disabled={copyState === 'copying'} style={copyBtn(copyState)}>
+                  {copyState === 'copying' ? 'Generating…'
+                    : copyState === 'copied' ? '✓ Copied!'
+                    : copyState === 'downloaded' ? '✓ Downloaded!'
+                    : copyState === 'error' ? '✕ Failed'
+                    : '⎘ Export image'}
+                </button>
+              )}
             </div>
           </div>
         </>
@@ -329,4 +373,13 @@ const listRow = (isFinal) => ({
   padding: '10px 14px', borderRadius: 'var(--radius-sm)',
   border: isFinal ? '1.5px solid var(--navy)' : '1.5px solid var(--gray-200)',
   background: isFinal ? '#F0F4FF' : 'var(--gray-50)',
+});
+const copyBtn = (state) => ({
+  fontSize: 12, fontWeight: 600, borderRadius: 7, padding: '6px 12px',
+  border: '1.5px solid var(--gray-200)',
+  background: (state === 'copied' || state === 'downloaded') ? 'var(--green-light)' : state === 'error' ? 'var(--red-light)' : 'var(--gray-100)',
+  color: (state === 'copied' || state === 'downloaded') ? 'var(--green)' : state === 'error' ? 'var(--red)' : 'var(--gray-600)',
+  cursor: state === 'copying' ? 'wait' : 'pointer',
+  whiteSpace: 'nowrap',
+  transition: 'background 0.2s, color 0.2s',
 });

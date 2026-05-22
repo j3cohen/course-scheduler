@@ -3,9 +3,6 @@ import { timeToMinutes, formatTime } from '../utils/scheduler.js';
 
 const DAYS = ['M', 'T', 'W', 'Th', 'F'];
 const DAY_LABELS = { M: 'Mon', T: 'Tue', W: 'Wed', Th: 'Thu', F: 'Fri' };
-const EARLIEST_HOUR = 8; // never display before this
-const DEFAULT_START  = 9; // default when no early classes
-const END_HOUR = 21;
 
 const COURSE_COLORS = [
   { bg: '#EEF2FF', border: '#818CF8', text: '#3730A3' },
@@ -48,9 +45,13 @@ export default function WeeklyCalendar({ blocks, blocked }) {
   const LABEL_W = compact ? 26 : 44;
   const HOUR_H  = compact ? 42 : 54;
 
-  // Only show 8am row when a course actually starts before 9am
-  const hasEarlyClass = blocks.some(b => timeToMinutes(b.startTime) < DEFAULT_START * 60);
-  const START_HOUR = hasEarlyClass ? EARLIEST_HOUR : DEFAULT_START;
+  // Start at 9am unless a class begins before 9am; fully dynamic end
+  const START_HOUR = blocks.length > 0
+    ? Math.min(9, Math.floor(Math.min(...blocks.map(b => timeToMinutes(b.startTime))) / 60))
+    : 9;
+  const END_HOUR = blocks.length > 0
+    ? Math.ceil(Math.max(...blocks.map(b => timeToMinutes(b.endTime))) / 60) + 1
+    : 18;
 
   const totalH = (END_HOUR - START_HOUR) * HOUR_H;
   const hours  = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
