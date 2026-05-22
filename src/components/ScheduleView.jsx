@@ -13,6 +13,7 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
   const [requiredIds, setRequiredIds] = useState(new Set());
   const [excludedIds, setExcludedIds] = useState(new Set());
   const [blocked, setBlocked] = useState(new Set());
+  const [committedBlocked, setCommittedBlocked] = useState(new Set());
 
   // Results & navigation
   const [generated, setGenerated] = useState(null);
@@ -46,6 +47,7 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
         MAX_SCHEDULES
       );
       setGenerated(result);
+      setCommittedBlocked(opts.blk);
       setCurrentIdx(0);
       setIsGenerating(false);
     }, 50);
@@ -179,7 +181,7 @@ export default function ScheduleView({ courses, savedSchedules, onSaveSaved, onD
         <>
           <div style={calendarCard}>
             {view === 'calendar'
-              ? <WeeklyCalendar blocks={viewedBlocks} blocked={blocked} />
+              ? <WeeklyCalendar blocks={viewedBlocks} blocked={committedBlocked} />
               : <CourseListView schedule={viewedSchedule} credits={viewedCredits} />
             }
             <div style={{ display: 'flex', justifyContent: 'center', marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--gray-200)' }}>
