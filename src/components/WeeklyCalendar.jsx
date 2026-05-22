@@ -3,7 +3,8 @@ import { timeToMinutes, formatTime } from '../utils/scheduler.js';
 
 const DAYS = ['M', 'T', 'W', 'Th', 'F'];
 const DAY_LABELS = { M: 'Mon', T: 'Tue', W: 'Wed', Th: 'Thu', F: 'Fri' };
-const START_HOUR = 8;
+const EARLIEST_HOUR = 8; // never display before this
+const DEFAULT_START  = 9; // default when no early classes
 const END_HOUR = 21;
 
 const COURSE_COLORS = [
@@ -18,15 +19,13 @@ const COURSE_COLORS = [
 ];
 const FINAL_COLOR = { bg: '#EFF6FF', border: '#041E42', text: '#041E42' };
 
-// Group sorted minute-values into consecutive 30-min runs
 function groupConsecutiveSlots(sortedMins) {
   const groups = [];
   for (const m of sortedMins) {
-    if (groups.length > 0 && groups[groups.length - 1].end === m) {
+    if (groups.length > 0 && groups[groups.length - 1].end === m)
       groups[groups.length - 1].end = m + 30;
-    } else {
+    else
       groups.push({ start: m, end: m + 30 });
-    }
   }
   return groups;
 }
@@ -48,8 +47,13 @@ export default function WeeklyCalendar({ blocks, blocked }) {
   const compact = containerWidth < 480;
   const LABEL_W = compact ? 26 : 44;
   const HOUR_H  = compact ? 42 : 54;
-  const totalH  = (END_HOUR - START_HOUR) * HOUR_H;
-  const hours   = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
+
+  // Only show 8am row when a course actually starts before 9am
+  const hasEarlyClass = blocks.some(b => timeToMinutes(b.startTime) < DEFAULT_START * 60);
+  const START_HOUR = hasEarlyClass ? EARLIEST_HOUR : DEFAULT_START;
+
+  const totalH = (END_HOUR - START_HOUR) * HOUR_H;
+  const hours  = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
 
   const colorMap = {};
   let colorIdx = 0;
@@ -58,7 +62,6 @@ export default function WeeklyCalendar({ blocks, blocked }) {
       colorMap[b.courseId] = b.isFinal ? FINAL_COLOR : COURSE_COLORS[colorIdx++ % COURSE_COLORS.length];
   });
 
-  // Pre-compute blocked groups per day for rendering
   const blockedByDay = {};
   if (blocked && blocked.size > 0) {
     for (const day of DAYS) {
@@ -113,7 +116,7 @@ export default function WeeklyCalendar({ blocks, blocked }) {
 
             return (
               <div key={day} style={{ flex: 1, position: 'relative', height: totalH, borderLeft: '1px solid var(--gray-200)' }}>
-                {/* Hour / half-hour grid lines */}
+                {/* Grid lines */}
                 {hours.map(h => (
                   <React.Fragment key={h}>
                     <div style={{ position: 'absolute', left: 0, right: 0, top: (h - START_HOUR) * HOUR_H, borderTop: h === START_HOUR ? 'none' : '1px solid var(--gray-100)', height: 1 }} />
@@ -129,17 +132,17 @@ export default function WeeklyCalendar({ blocks, blocked }) {
                     <div key={i} style={{
                       position: 'absolute', left: 0, right: 0, top, height,
                       background: 'repeating-linear-gradient(135deg, rgba(220,38,38,0.07) 0px, rgba(220,38,38,0.07) 4px, transparent 4px, transparent 10px)',
-                      borderLeft: '2.5px solid rgba(220,38,38,0.35)',
+                      borderLeft: '2.5px solid rgba(220,38,38,0.3)',
                       zIndex: 1,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
                       {height >= 18 && (
                         <span style={{
                           fontSize: compact ? 6 : 8, fontWeight: 800,
-                          color: 'rgba(220,38,38,0.45)',
+                          color: 'rgba(220,38,38,0.4)',
                           textTransform: 'uppercase', letterSpacing: '0.06em',
-                          writingMode: height < 30 ? 'horizontal-tb' : 'vertical-rl',
-                          transform: height >= 30 ? 'rotate(180deg)' : 'none',
+                          writingMode: height < 28 ? 'horizontal-tb' : 'vertical-rl',
+                          transform: height >= 28 ? 'rotate(180deg)' : 'none',
                         }}>
                           blocked
                         </span>
@@ -150,8 +153,8 @@ export default function WeeklyCalendar({ blocks, blocked }) {
 
                 {/* Course blocks */}
                 {dayBlocks.map(b => {
-                  const key        = `${b.courseId}_${b.sectionId}`;
-                  const isExpanded = selectedKey === key;
+                  const blockKey   = `${b.courseId}_${b.sectionId}`;
+                  const isExpanded = selectedKey === blockKey;
                   const startMins  = timeToMinutes(b.startTime) - START_HOUR * 60;
                   const endMins    = timeToMinutes(b.endTime)   - START_HOUR * 60;
                   const top        = (startMins / 60) * HOUR_H;
@@ -162,17 +165,21 @@ export default function WeeklyCalendar({ blocks, blocked }) {
                   const fs         = compact ? 8  : 10;
                   const fsSub      = compact ? 7  : 9;
 
+                  // maxHeight controls clipping: natH when collapsed, large value when expanded.
+                  // height:'auto' + minHeight:natH ensures the box is always at least natH tall
+                  // and grows with content when maxHeight is released.
+                  // overflow:'hidden' is safe here — height:auto sizes the box to content exactly,
+                  // so nothing is ever clipped when expanded.
                   return (
                     <div
-                      key={`${day}_${key}`}
-                      onClick={() => toggle(key)}
+                      key={`${day}_${blockKey}`}
+                      onClick={() => toggle(blockKey)}
                       style={{
                         position: 'absolute',
                         left: inset, right: inset, top,
-                        // height:auto grows with content; overflow:hidden clips to that grown height
-                        // so background always covers all visible text
-                        height: isExpanded ? 'auto' : natH,
+                        height: 'auto',
                         minHeight: natH,
+                        maxHeight: isExpanded ? 600 : natH,
                         background: color.bg,
                         border: `${isExpanded ? 2 : 1.5}px solid ${color.border}`,
                         borderRadius: compact ? 4 : 7,
@@ -181,30 +188,36 @@ export default function WeeklyCalendar({ blocks, blocked }) {
                         zIndex: isExpanded ? 10 : 2,
                         cursor: 'pointer',
                         boxShadow: isExpanded ? `0 3px 14px ${color.border}66` : 'none',
-                        transition: 'box-shadow 0.15s',
+                        transition: 'box-shadow 0.15s, max-height 0.2s ease',
                       }}
                     >
-                      {/* All lines always rendered; overflow:hidden clips when collapsed */}
+                      {/* Line 1: code (or label when no code) */}
                       <div style={{ fontSize: fs, fontWeight: 700, color: color.text, lineHeight: 1.3, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {b.code || b.label}
                       </div>
+
+                      {/* Line 2: full course name (when code is separate) */}
                       {hasCode && (
                         <div style={{ fontSize: fsSub, color: color.text, opacity: 0.9, lineHeight: 1.3, marginTop: 1, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {b.label}
                         </div>
                       )}
+
+                      {/* Line 3: professor */}
                       {b.professor && (
                         <div style={{ fontSize: fsSub, color: color.text, opacity: 0.75, lineHeight: 1.3, marginTop: 1, whiteSpace: isExpanded ? 'normal' : 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {b.professor}
                         </div>
                       )}
+
+                      {/* Line 4: time */}
                       <div style={{ fontSize: fsSub, color: color.text, opacity: 0.65, lineHeight: 1.3, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {formatTime(b.startTime)}–{formatTime(b.endTime)}
                       </div>
 
-                      {/* Expand / collapse chevron */}
+                      {/* Expand / collapse indicator */}
                       {isExpanded
-                        ? <div style={{ fontSize: fsSub - 1, color: color.text, opacity: 0.4, marginTop: 3, textAlign: 'right' }}>▴</div>
+                        ? <div style={{ fontSize: fsSub - 1, color: color.text, opacity: 0.4, marginTop: 4, textAlign: 'right' }}>▴ less</div>
                         : <div style={{ position: 'absolute', bottom: 1, right: 3, fontSize: fsSub - 1, color: color.text, opacity: 0.35, lineHeight: 1 }}>▾</div>
                       }
                     </div>
